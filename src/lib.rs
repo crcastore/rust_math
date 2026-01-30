@@ -1,5 +1,152 @@
-use ndarray::{Array2, Array1};
+use ndarray::{Array1, Array2};
 use std::ops::Mul;
+
+#[derive(Clone, Copy, Debug)]
+pub enum Backend {
+    Cpu,
+    Metal,
+}
+
+pub struct LinAlg {
+    backend: Backend,
+    #[cfg(feature = "metal")]
+    metal: Option<MetalContext>,
+}
+
+#[cfg(feature = "metal")]
+struct MetalContext {
+    device: metal::Device,
+    queue: metal::CommandQueue,
+    pipeline: metal::ComputePipelineState,
+}
+
+impl LinAlg {
+    pub fn new(backend: Backend) -> Result<Self, String> {
+        match backend {
+            Backend::Cpu => Ok(Self {
+                backend,
+                #[cfg(feature = "metal")]
+                metal: None,
+            }),
+            Backend::Metal => {
+                #[cfg(feature = "metal")]
+                {
+                    let device = metal::Device::system_default().ok_or("Metal device not available")?;
+                    let queue = device.new_command_queue();
+                    let src = r#"
+                    #include <metal_stdlib>
+                    using namespace metal;
+                    kernel void matmul(
+                        device const float* A [[buffer(0)]],
+                        device const float* B [[buffer(1)]],
+                        device float* C [[buffer(2)]],
+                        constant uint& M [[buffer(3)]],
+                        constant uint& K [[buffer(4)]],
+                        constant uint& N [[buffer(5)]],
+                        uint2 gid [[thread_position_in_grid]]) {
+                        uint row = gid.y;
+                        uint col = gid.x;
+                        if (row < M && col < N) {
+                            float acc = 0.0;
+                            for (uint k = 0; k < K; ++k) {
+                                acc += A[row * K + k] * B[k * N + col];
+                            }
+                            C[row * N + col] = acc;
+                        }
+                    }
+                    "#;
+                    let options = metal::CompileOptions::new();
+                    let library = device
+                        .new_library_with_source(src, &options)
+                        .map_err(|e| format!("Metal compile error: {:?}", e))?;
+                    let kernel = library
+                        .get_function("matmul", None)
+                        .map_err(|e| format!("Metal get_function error: {:?}", e))?;
+                    let pipeline = device
+                        .new_compute_pipeline_state_with_function(&kernel)
+                        .map_err(|e| format!("Metal pipeline error: {:?}", e))?;
+                    Ok(Self {
+                        backend,
+                        metal: Some(MetalContext { device, queue, pipeline }),
+                    })
+                }
+                #[cfg(not(feature = "metal"))]
+                {
+                    Err("Metal backend not enabled; build with --features metal".to_string())
+                }
+            }
+        }
+    }
+
+    pub fn matmul(&self, a: &Matrix, b: &Matrix) -> Result<Matrix, String> {
+        match self.backend {
+            Backend::Cpu => a.dot(b),
+            Backend::Metal => {
+                #[cfg(feature = "metal")]
+                {
+                    self.gpu_matmul(a, b)
+                }
+                #[cfg(not(feature = "metal"))]
+                {
+                    Err("Metal backend not enabled; build with --features metal".to_string())
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "metal")]
+    fn gpu_matmul(&self, a: &Matrix, b: &Matrix) -> Result<Matrix, String> {
+        let ctx = self.metal.as_ref().ok_or("Metal context missing")?;
+        if a.ncols() != b.nrows() {
+            return Err("Matrix dimension mismatch for multiplication".to_string());
+        }
+        let m = a.nrows();
+        let k = a.ncols();
+        let n = b.ncols();
+
+        // Convert to f32 for the GPU kernel.
+        let a_f32: Vec<f32> = a.as_array().iter().map(|&x| x as f32).collect();
+        let b_f32: Vec<f32> = b.as_array().iter().map(|&x| x as f32).collect();
+        let mut c_f32: Vec<f32> = vec![0.0; m * n];
+
+        use std::ffi::c_void;
+        let a_buf = ctx
+            .device
+            .new_buffer_with_data(a_f32.as_ptr() as *const c_void, (a_f32.len() * 4) as u64, metal::MTLResourceOptions::CPUCacheModeDefaultCache);
+        let b_buf = ctx
+            .device
+            .new_buffer_with_data(b_f32.as_ptr() as *const c_void, (b_f32.len() * 4) as u64, metal::MTLResourceOptions::CPUCacheModeDefaultCache);
+        let c_buf = ctx
+            .device
+            .new_buffer_with_data(c_f32.as_mut_ptr() as *mut c_void, (c_f32.len() * 4) as u64, metal::MTLResourceOptions::CPUCacheModeDefaultCache);
+
+        let m_u = m as u32;
+        let k_u = k as u32;
+        let n_u = n as u32;
+
+        let command_buffer = ctx.queue.new_command_buffer();
+        let encoder = command_buffer.new_compute_command_encoder();
+        encoder.set_compute_pipeline_state(&ctx.pipeline);
+        encoder.set_buffer(0, Some(&a_buf), 0);
+        encoder.set_buffer(1, Some(&b_buf), 0);
+        encoder.set_buffer(2, Some(&c_buf), 0);
+        encoder.set_bytes(3, std::mem::size_of::<u32>() as u64, &m_u as *const u32 as *const c_void);
+        encoder.set_bytes(4, std::mem::size_of::<u32>() as u64, &k_u as *const u32 as *const c_void);
+        encoder.set_bytes(5, std::mem::size_of::<u32>() as u64, &n_u as *const u32 as *const c_void);
+
+        let tg = metal::MTLSize { width: 8, height: 8, depth: 1 };
+        let grid = metal::MTLSize { width: n as u64, height: m as u64, depth: 1 };
+        encoder.dispatch_threads(grid, tg);
+        encoder.end_encoding();
+        command_buffer.commit();
+        command_buffer.wait_until_completed();
+
+        // Read back results (already in c_f32 because the buffer aliases it).
+        let c_f64: Vec<f64> = c_f32.iter().map(|&x| x as f64).collect();
+        let data = Array2::from_shape_vec((m, n), c_f64).map_err(|e| e.to_string())?;
+        Ok(Matrix::new(data))
+    }
+}
 
 /// A simple matrix wrapper for linear algebra operations using BLAS.
 #[derive(Clone, Debug, PartialEq)]

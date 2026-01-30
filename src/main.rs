@@ -1,5 +1,6 @@
-use lin_alg::Matrix;
+use lin_alg::{Backend, LinAlg, Matrix};
 use rand::Rng;
+use std::env;
 use std::time::Instant;
 
 fn gen_matrix(size: usize) -> Matrix {
@@ -8,7 +9,7 @@ fn gen_matrix(size: usize) -> Matrix {
     Matrix::from_shape_vec(size, size, data).unwrap()
 }
 
-fn run_case(size: usize, reps: usize) {
+fn run_case(ctx: &LinAlg, size: usize, reps: usize) {
     println!("--- size={} reps={} ---", size, reps);
     let mut a = gen_matrix(size);
     let mut b = gen_matrix(size);
@@ -16,7 +17,7 @@ fn run_case(size: usize, reps: usize) {
 
     let start = Instant::now();
     for _ in 0..reps {
-        let c = a.dot(&b).unwrap();
+        let c = ctx.matmul(&a, &b).unwrap();
         checksum += c.as_array()[(0, 0)];
         a = b;
         b = c;
@@ -35,9 +36,12 @@ fn run_case(size: usize, reps: usize) {
 }
 
 fn main() {
-    // Sizes and repetitions tuned to keep runtime reasonable while still sizable for profiling.
-    let cases = [(256, 5), (512, 3), (1024, 1)];
+    let use_metal = env::var("USE_METAL").ok().map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+    let backend = if use_metal { Backend::Metal } else { Backend::Cpu };
+    let ctx = LinAlg::new(backend).expect("Failed to init backend");
+    // Much larger sizes to create a stark CPU vs GPU gap; reps kept at 1 to avoid extremely long CPU runs.
+    let cases = [(4096, 1), (6144, 1)];
     for (size, reps) in cases {
-        run_case(size, reps);
+        run_case(&ctx, size, reps);
     }
 }
