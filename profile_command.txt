@@ -1,0 +1,1 @@
+xcrun xctrace record --template 'Time Profiler' --launch -- /bin/zsh -lc "cd /Users/home/Documents/repos/rust_profiling/sandbox && cargo bench --bench matmul -- --sample-size 10"
