@@ -421,6 +421,7 @@ fn linalg_cpu_matmul_dimension_mismatch() {
 
 #[cfg(feature = "metal")]
 #[test]
+#[ignore = "Requires Metal GPU hardware (skip on CI)"]
 fn linalg_metal_backend_creation() {
     let result = LinAlg::new(Backend::Metal);
     // Metal may or may not be available depending on system
@@ -436,6 +437,7 @@ fn linalg_metal_backend_creation() {
 
 #[cfg(feature = "metal")]
 #[test]
+#[ignore = "Requires Metal GPU hardware (skip on CI)"]
 fn linalg_metal_matmul_larger() {
     let result = LinAlg::new(Backend::Metal);
     if result.is_ok() {
