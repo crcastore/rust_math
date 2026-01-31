@@ -380,7 +380,7 @@ fn constructor_rand_values_in_range() {
     let r = rand(10, 10);
     for &val in r.as_array().iter() {
         assert!(
-            val >= 0.0 && val < 1.0,
+            (0.0..1.0).contains(&val),
             "Random value {} out of range [0, 1)",
             val
         );
