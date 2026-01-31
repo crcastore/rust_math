@@ -1,0 +1,21 @@
+#include <metal_stdlib>
+using namespace metal;
+
+kernel void matmul(
+    device const float* A [[buffer(0)]],
+    device const float* B [[buffer(1)]],
+    device float* C [[buffer(2)]],
+    constant uint& M [[buffer(3)]],
+    constant uint& K [[buffer(4)]],
+    constant uint& N [[buffer(5)]],
+    uint2 gid [[thread_position_in_grid]]) {
+    uint row = gid.y;
+    uint col = gid.x;
+    if (row < M && col < N) {
+        float acc = 0.0;
+        for (uint k = 0; k < K; ++k) {
+            acc += A[row * K + k] * B[k * N + col];
+        }
+        C[row * N + col] = acc;
+    }
+}

@@ -40,7 +40,7 @@ fn main() {
     let backend = if use_metal { Backend::Metal } else { Backend::Cpu };
     let ctx = LinAlg::new(backend).expect("Failed to init backend");
     // Much larger sizes to create a stark CPU vs GPU gap; reps kept at 1 to avoid extremely long CPU runs.
-    let cases = [(4096, 1), (6144, 1)];
+    let cases = [(4096, 100), (6144, 1)];
     for (size, reps) in cases {
         run_case(&ctx, size, reps);
     }

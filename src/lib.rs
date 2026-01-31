@@ -20,6 +20,24 @@ struct MetalContext {
     pipeline: metal::ComputePipelineState,
 }
 
+#[cfg(feature = "metal")]
+fn init_metal_context() -> Result<MetalContext, String> {
+    let device = metal::Device::system_default().ok_or("Metal device not available")?;
+    let queue = device.new_command_queue();
+    let src = include_str!("../shaders/matmul.metal");
+    let options = metal::CompileOptions::new();
+    let library = device
+        .new_library_with_source(src, &options)
+        .map_err(|e| format!("Metal compile error: {:?}", e))?;
+    let kernel = library
+        .get_function("matmul", None)
+        .map_err(|e| format!("Metal get_function error: {:?}", e))?;
+    let pipeline = device
+        .new_compute_pipeline_state_with_function(&kernel)
+        .map_err(|e| format!("Metal pipeline error: {:?}", e))?;
+    Ok(MetalContext { device, queue, pipeline })
+}
+
 impl LinAlg {
     pub fn new(backend: Backend) -> Result<Self, String> {
         match backend {
@@ -31,43 +49,10 @@ impl LinAlg {
             Backend::Metal => {
                 #[cfg(feature = "metal")]
                 {
-                    let device = metal::Device::system_default().ok_or("Metal device not available")?;
-                    let queue = device.new_command_queue();
-                    let src = r#"
-                    #include <metal_stdlib>
-                    using namespace metal;
-                    kernel void matmul(
-                        device const float* A [[buffer(0)]],
-                        device const float* B [[buffer(1)]],
-                        device float* C [[buffer(2)]],
-                        constant uint& M [[buffer(3)]],
-                        constant uint& K [[buffer(4)]],
-                        constant uint& N [[buffer(5)]],
-                        uint2 gid [[thread_position_in_grid]]) {
-                        uint row = gid.y;
-                        uint col = gid.x;
-                        if (row < M && col < N) {
-                            float acc = 0.0;
-                            for (uint k = 0; k < K; ++k) {
-                                acc += A[row * K + k] * B[k * N + col];
-                            }
-                            C[row * N + col] = acc;
-                        }
-                    }
-                    "#;
-                    let options = metal::CompileOptions::new();
-                    let library = device
-                        .new_library_with_source(src, &options)
-                        .map_err(|e| format!("Metal compile error: {:?}", e))?;
-                    let kernel = library
-                        .get_function("matmul", None)
-                        .map_err(|e| format!("Metal get_function error: {:?}", e))?;
-                    let pipeline = device
-                        .new_compute_pipeline_state_with_function(&kernel)
-                        .map_err(|e| format!("Metal pipeline error: {:?}", e))?;
+                    let ctx = init_metal_context()?;
                     Ok(Self {
                         backend,
-                        metal: Some(MetalContext { device, queue, pipeline }),
+                        metal: Some(ctx),
                     })
                 }
                 #[cfg(not(feature = "metal"))]
