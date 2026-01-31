@@ -180,6 +180,11 @@ impl Vector {
         self.data.len()
     }
 
+    /// Check if the vector is empty.
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     /// Borrow the underlying ndarray vector (useful for testing/inspection).
     pub fn as_array(&self) -> &Array1<f64> {
         &self.data
