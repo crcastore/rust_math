@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use lin_alg::{Backend, LinAlg, Matrix};
-use std::env;
 use rand::Rng;
+use std::env;
 
 fn backend_from_env() -> Backend {
     let use_metal = env::var("USE_METAL")

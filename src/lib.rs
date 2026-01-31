@@ -72,7 +72,11 @@ impl Matrix {
     }
 
     /// Create a matrix from shape and data vector.
-    pub fn from_shape_vec(rows: usize, cols: usize, data: Vec<f64>) -> Result<Self, ndarray::ShapeError> {
+    pub fn from_shape_vec(
+        rows: usize,
+        cols: usize,
+        data: Vec<f64>,
+    ) -> Result<Self, ndarray::ShapeError> {
         Ok(Matrix::new(Array2::from_shape_vec((rows, cols), data)?))
     }
 

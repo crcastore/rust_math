@@ -24,7 +24,11 @@ pub(crate) fn init_metal_context() -> Result<MetalContext, String> {
     let pipeline = device
         .new_compute_pipeline_state_with_function(&kernel)
         .map_err(|e| format!("Metal pipeline error: {:?}", e))?;
-    Ok(MetalContext { device, queue, pipeline })
+    Ok(MetalContext {
+        device,
+        queue,
+        pipeline,
+    })
 }
 
 pub(crate) fn gpu_matmul(ctx: &MetalContext, a: &Matrix, b: &Matrix) -> Result<Matrix, String> {
@@ -40,15 +44,21 @@ pub(crate) fn gpu_matmul(ctx: &MetalContext, a: &Matrix, b: &Matrix) -> Result<M
     let b_f32: Vec<f32> = b.as_array().iter().map(|&x| x as f32).collect();
     let mut c_f32: Vec<f32> = vec![0.0; m * n];
 
-    let a_buf = ctx
-        .device
-        .new_buffer_with_data(a_f32.as_ptr() as *const c_void, (a_f32.len() * 4) as u64, metal::MTLResourceOptions::CPUCacheModeDefaultCache);
-    let b_buf = ctx
-        .device
-        .new_buffer_with_data(b_f32.as_ptr() as *const c_void, (b_f32.len() * 4) as u64, metal::MTLResourceOptions::CPUCacheModeDefaultCache);
-    let c_buf = ctx
-        .device
-        .new_buffer_with_data(c_f32.as_mut_ptr() as *mut c_void, (c_f32.len() * 4) as u64, metal::MTLResourceOptions::CPUCacheModeDefaultCache);
+    let a_buf = ctx.device.new_buffer_with_data(
+        a_f32.as_ptr() as *const c_void,
+        (a_f32.len() * 4) as u64,
+        metal::MTLResourceOptions::CPUCacheModeDefaultCache,
+    );
+    let b_buf = ctx.device.new_buffer_with_data(
+        b_f32.as_ptr() as *const c_void,
+        (b_f32.len() * 4) as u64,
+        metal::MTLResourceOptions::CPUCacheModeDefaultCache,
+    );
+    let c_buf = ctx.device.new_buffer_with_data(
+        c_f32.as_mut_ptr() as *mut c_void,
+        (c_f32.len() * 4) as u64,
+        metal::MTLResourceOptions::CPUCacheModeDefaultCache,
+    );
 
     let m_u = m as u32;
     let k_u = k as u32;
@@ -60,12 +70,32 @@ pub(crate) fn gpu_matmul(ctx: &MetalContext, a: &Matrix, b: &Matrix) -> Result<M
     encoder.set_buffer(0, Some(&a_buf), 0);
     encoder.set_buffer(1, Some(&b_buf), 0);
     encoder.set_buffer(2, Some(&c_buf), 0);
-    encoder.set_bytes(3, std::mem::size_of::<u32>() as u64, &m_u as *const u32 as *const c_void);
-    encoder.set_bytes(4, std::mem::size_of::<u32>() as u64, &k_u as *const u32 as *const c_void);
-    encoder.set_bytes(5, std::mem::size_of::<u32>() as u64, &n_u as *const u32 as *const c_void);
+    encoder.set_bytes(
+        3,
+        std::mem::size_of::<u32>() as u64,
+        &m_u as *const u32 as *const c_void,
+    );
+    encoder.set_bytes(
+        4,
+        std::mem::size_of::<u32>() as u64,
+        &k_u as *const u32 as *const c_void,
+    );
+    encoder.set_bytes(
+        5,
+        std::mem::size_of::<u32>() as u64,
+        &n_u as *const u32 as *const c_void,
+    );
 
-    let tg = metal::MTLSize { width: 8, height: 8, depth: 1 };
-    let grid = metal::MTLSize { width: n as u64, height: m as u64, depth: 1 };
+    let tg = metal::MTLSize {
+        width: 8,
+        height: 8,
+        depth: 1,
+    };
+    let grid = metal::MTLSize {
+        width: n as u64,
+        height: m as u64,
+        depth: 1,
+    };
     encoder.dispatch_threads(grid, tg);
     encoder.end_encoding();
     command_buffer.commit();

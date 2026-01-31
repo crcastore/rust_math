@@ -27,7 +27,8 @@ fn run_case(ctx: &LinAlg, size: usize, reps: usize) {
     let secs = elapsed.as_secs_f64();
     let flops = 2.0 * (size as f64).powi(3) * reps as f64;
     let gflops = flops / secs / 1.0e9;
-    println!("total: {:.3?} | avg: {:.3} ms | throughput: {:.2} GFLOP/s | checksum: {:.4}",
+    println!(
+        "total: {:.3?} | avg: {:.3} ms | throughput: {:.2} GFLOP/s | checksum: {:.4}",
         elapsed,
         secs * 1_000.0 / reps as f64,
         gflops,
@@ -36,8 +37,15 @@ fn run_case(ctx: &LinAlg, size: usize, reps: usize) {
 }
 
 fn main() {
-    let use_metal = env::var("USE_METAL").ok().map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
-    let backend = if use_metal { Backend::Metal } else { Backend::Cpu };
+    let use_metal = env::var("USE_METAL")
+        .ok()
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    let backend = if use_metal {
+        Backend::Metal
+    } else {
+        Backend::Cpu
+    };
     let ctx = LinAlg::new(backend).expect("Failed to init backend");
     // Much larger sizes to create a stark CPU vs GPU gap; reps kept at 1 to avoid extremely long CPU runs.
     let cases = [(4096, 100), (6144, 1)];

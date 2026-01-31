@@ -40,7 +40,8 @@ fn matrix_multiply_small() {
 
 #[test]
 fn matrix_multiply_identity() {
-    let a = Matrix::from_shape_vec(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).unwrap();
+    let a =
+        Matrix::from_shape_vec(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).unwrap();
     let i = eye(3);
     let result = a.dot(&i).unwrap();
     assert_eq!(result.as_array(), a.as_array());
@@ -378,7 +379,11 @@ fn constructor_rand_shape() {
 fn constructor_rand_values_in_range() {
     let r = rand(10, 10);
     for &val in r.as_array().iter() {
-        assert!(val >= 0.0 && val < 1.0, "Random value {} out of range [0, 1)", val);
+        assert!(
+            val >= 0.0 && val < 1.0,
+            "Random value {} out of range [0, 1)",
+            val
+        );
     }
 }
 
@@ -468,11 +473,12 @@ fn matrix_multiply_large_result() {
     let outer = col.dot(&row).unwrap();
     assert_eq!(outer.shape(), (3, 4));
     // outer[i][j] = col[i] * row[j]
-    let expected = Matrix::from_shape_vec(3, 4, vec![
-        1.0, 2.0, 3.0, 4.0,
-        2.0, 4.0, 6.0, 8.0,
-        3.0, 6.0, 9.0, 12.0,
-    ]).unwrap();
+    let expected = Matrix::from_shape_vec(
+        3,
+        4,
+        vec![1.0, 2.0, 3.0, 4.0, 2.0, 4.0, 6.0, 8.0, 3.0, 6.0, 9.0, 12.0],
+    )
+    .unwrap();
     assert_eq!(outer.as_array(), expected.as_array());
 }
 
@@ -496,4 +502,3 @@ fn matrix_with_fractional_values() {
     let expected = a.as_array().dot(b.as_array());
     assert_eq!(c.as_array(), &expected);
 }
-
