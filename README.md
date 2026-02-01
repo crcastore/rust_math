@@ -1,5 +1,8 @@
 # Parallel Matrix Multiplication with CPU + GPU Workers
 
+[![CI](https://github.com/YOUR_USERNAME/matmul-workers/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/matmul-workers/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A Rust system using the [Burn](https://burn.dev) framework to process matrix multiplications in parallel across CPU and GPU simultaneously.
 
 ## Architecture
