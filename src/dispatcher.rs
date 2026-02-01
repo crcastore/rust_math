@@ -80,3 +80,82 @@ impl Default for Dispatcher {
         Self::new((num_cpus::get() / 2).max(1))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn simple_job(id: usize) -> MatMulJob {
+        MatMulJob::square(id, vec![1.0; 4], vec![1.0; 4], 2)
+    }
+
+    #[test]
+    fn test_dispatcher_creation() {
+        let dispatcher = Dispatcher::new(2);
+        dispatcher.shutdown();
+    }
+
+    #[test]
+    fn test_dispatcher_default_creation() {
+        let dispatcher = Dispatcher::default();
+        dispatcher.shutdown();
+    }
+
+    #[test]
+    fn test_submit_and_receive_cpu() {
+        let dispatcher = Dispatcher::new(1);
+        dispatcher.submit_cpu(simple_job(0));
+
+        let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(result.id, 0);
+        assert!(result.worker.starts_with("CPU"));
+
+        dispatcher.shutdown();
+    }
+
+    #[test]
+    fn test_submit_and_receive_gpu() {
+        let dispatcher = Dispatcher::new(1);
+        dispatcher.submit_gpu(simple_job(1));
+
+        let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(result.id, 1);
+        assert_eq!(result.worker, "GPU");
+
+        dispatcher.shutdown();
+    }
+
+    #[test]
+    fn test_multiple_workers() {
+        let dispatcher = Dispatcher::new(3);
+
+        for i in 0..6 {
+            dispatcher.submit_cpu(simple_job(i));
+        }
+
+        let mut ids = std::collections::HashSet::new();
+        for _ in 0..6 {
+            let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+            ids.insert(result.id);
+        }
+
+        assert_eq!(ids.len(), 6);
+        dispatcher.shutdown();
+    }
+
+    #[test]
+    fn test_results_returns_same_receiver() {
+        let dispatcher = Dispatcher::new(1);
+        dispatcher.submit_cpu(simple_job(0));
+
+        let r1 = dispatcher.results();
+        let r2 = dispatcher.results();
+
+        // Both should point to same channel
+        let _ = r1.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert!(r2.recv_timeout(Duration::from_millis(50)).is_err());
+
+        dispatcher.shutdown();
+    }
+}
