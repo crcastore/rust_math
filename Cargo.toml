@@ -1,30 +1,10 @@
 [package]
-name = "sandbox"
+name = "matmul-workers"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-name = "lin_alg"
-path = "src/lib.rs"
-
-[features]
-default = ["accelerate"]
-accelerate = ["accelerate-src", "blas-src/accelerate"]
-openblas = ["openblas-src", "blas-src/openblas"]
-metal = ["dep:metal"]
-
 [dependencies]
-ndarray = "0.15"
-nalgebra = "0.33"
-blas-src = "0.8"
+burn = { version = "0.16", features = ["ndarray", "wgpu"] }
+crossbeam-channel = "0.5"
 rand = "0.8"
-metal = { version = "0.30", optional = true }
-accelerate-src = { version = "0.3", optional = true }
-openblas-src = { version = "0.10", optional = true }
-
-[dev-dependencies]
-criterion = "0.5"
-
-[[bench]]
-name = "matmul"
-harness = false
+num_cpus = "1.16"
