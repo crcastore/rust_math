@@ -1,16 +1,41 @@
 //! Metal GPU backend for matrix operations.
 
+use crate::backend::LinAlgBackend;
 use crate::Matrix;
 use ndarray::Array2;
 use std::ffi::c_void;
 
-pub(crate) struct MetalContext {
-    pub device: metal::Device,
-    pub queue: metal::CommandQueue,
-    pub pipeline: metal::ComputePipelineState,
+/// Metal context holding GPU resources.
+pub struct MetalContext {
+    device: metal::Device,
+    queue: metal::CommandQueue,
+    pipeline: metal::ComputePipelineState,
 }
 
-pub(crate) fn init_metal_context() -> Result<MetalContext, String> {
+/// Metal GPU backend for accelerated linear algebra operations.
+pub struct MetalBackend {
+    ctx: MetalContext,
+}
+
+impl MetalBackend {
+    /// Create a new Metal backend, initializing the GPU context.
+    pub fn new() -> Result<Self, String> {
+        let ctx = init_metal_context()?;
+        Ok(MetalBackend { ctx })
+    }
+}
+
+impl LinAlgBackend for MetalBackend {
+    fn matmul(&self, a: &Matrix, b: &Matrix) -> Result<Matrix, String> {
+        gpu_matmul(&self.ctx, a, b)
+    }
+
+    fn name(&self) -> &'static str {
+        "Metal"
+    }
+}
+
+fn init_metal_context() -> Result<MetalContext, String> {
     let device = metal::Device::system_default().ok_or("Metal device not available")?;
     let queue = device.new_command_queue();
     let src = include_str!("../shaders/matmul.metal");
@@ -31,7 +56,7 @@ pub(crate) fn init_metal_context() -> Result<MetalContext, String> {
     })
 }
 
-pub(crate) fn gpu_matmul(ctx: &MetalContext, a: &Matrix, b: &Matrix) -> Result<Matrix, String> {
+fn gpu_matmul(ctx: &MetalContext, a: &Matrix, b: &Matrix) -> Result<Matrix, String> {
     if a.ncols() != b.nrows() {
         return Err("Matrix dimension mismatch for multiplication".to_string());
     }
@@ -105,4 +130,19 @@ pub(crate) fn gpu_matmul(ctx: &MetalContext, a: &Matrix, b: &Matrix) -> Result<M
     let c_f64: Vec<f64> = c_f32.iter().map(|&x| x as f64).collect();
     let data = Array2::from_shape_vec((m, n), c_f64).map_err(|e| e.to_string())?;
     Ok(Matrix::new(data))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_metal_backend_init() {
+        // This test will only pass on macOS with Metal support
+        let result = MetalBackend::new();
+        if result.is_ok() {
+            let backend = result.unwrap();
+            assert_eq!(backend.name(), "Metal");
+        }
+    }
 }

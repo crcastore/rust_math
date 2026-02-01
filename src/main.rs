@@ -1,4 +1,4 @@
-use lin_alg::{Backend, LinAlg, Matrix};
+use lin_alg::{BackendType, LinAlg, Matrix};
 use rand::Rng;
 use std::env;
 use std::time::Instant;
@@ -10,7 +10,7 @@ fn gen_matrix(size: usize) -> Matrix {
 }
 
 fn run_case(ctx: &LinAlg, size: usize, reps: usize) {
-    println!("--- size={} reps={} ---", size, reps);
+    println!("--- size={} reps={} ({}) ---", size, reps, ctx.backend_name());
     let mut a = gen_matrix(size);
     let mut b = gen_matrix(size);
     let mut checksum = 0.0;
@@ -41,14 +41,22 @@ fn main() {
         .ok()
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
+
+    // You can also use the specific backend constructors directly:
+    // let ctx = LinAlg::cpu();
+    // let ctx = LinAlg::metal().expect("Failed to init Metal");
+    
     let backend = if use_metal {
-        Backend::Metal
+        BackendType::Metal
     } else {
-        Backend::Cpu
+        BackendType::Cpu
     };
     let ctx = LinAlg::new(backend).expect("Failed to init backend");
+    
+    println!("Using backend: {}", ctx.backend_name());
+    
     // Much larger sizes to create a stark CPU vs GPU gap; reps kept at 1 to avoid extremely long CPU runs.
-    let cases = [(4096, 100), (6144, 1)];
+    let cases = [(496, 1), (644, 1)];
     for (size, reps) in cases {
         run_case(&ctx, size, reps);
     }

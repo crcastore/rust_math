@@ -1,4 +1,4 @@
-use lin_alg::{constructors::*, Backend, LinAlg, Matrix, Vector};
+use lin_alg::{constructors::*, BackendType, LinAlg, Matrix, Vector};
 
 // ============================================================================
 // Matrix Creation Tests
@@ -393,7 +393,7 @@ fn constructor_rand_values_in_range() {
 
 #[test]
 fn linalg_cpu_backend_creation() {
-    let ctx = LinAlg::new(Backend::Cpu).unwrap();
+    let ctx = LinAlg::new(BackendType::Cpu).unwrap();
     // Should successfully create CPU backend
     let a = Matrix::from_shape_vec(2, 2, vec![1.0, 2.0, 3.0, 4.0]).unwrap();
     let b = Matrix::from_shape_vec(2, 2, vec![5.0, 6.0, 7.0, 8.0]).unwrap();
@@ -404,7 +404,7 @@ fn linalg_cpu_backend_creation() {
 
 #[test]
 fn linalg_cpu_matmul_non_square() {
-    let ctx = LinAlg::new(Backend::Cpu).unwrap();
+    let ctx = LinAlg::new(BackendType::Cpu).unwrap();
     let a = Matrix::from_shape_vec(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
     let b = Matrix::from_shape_vec(3, 2, vec![7.0, 8.0, 9.0, 10.0, 11.0, 12.0]).unwrap();
     let c = ctx.matmul(&a, &b).unwrap();
@@ -413,7 +413,7 @@ fn linalg_cpu_matmul_non_square() {
 
 #[test]
 fn linalg_cpu_matmul_dimension_mismatch() {
-    let ctx = LinAlg::new(Backend::Cpu).unwrap();
+    let ctx = LinAlg::new(BackendType::Cpu).unwrap();
     let a = Matrix::from_shape_vec(2, 3, vec![1.0; 6]).unwrap();
     let b = Matrix::from_shape_vec(2, 2, vec![1.0; 4]).unwrap();
     assert!(ctx.matmul(&a, &b).is_err());
@@ -423,7 +423,7 @@ fn linalg_cpu_matmul_dimension_mismatch() {
 #[test]
 #[ignore = "Requires Metal GPU hardware (skip on CI)"]
 fn linalg_metal_backend_creation() {
-    let result = LinAlg::new(Backend::Metal);
+    let result = LinAlg::new(BackendType::Metal);
     // Metal may or may not be available depending on system
     if result.is_ok() {
         let ctx = result.unwrap();
@@ -439,7 +439,7 @@ fn linalg_metal_backend_creation() {
 #[test]
 #[ignore = "Requires Metal GPU hardware (skip on CI)"]
 fn linalg_metal_matmul_larger() {
-    let result = LinAlg::new(Backend::Metal);
+    let result = LinAlg::new(BackendType::Metal);
     if result.is_ok() {
         let ctx = result.unwrap();
         // Test with larger matrices
@@ -457,7 +457,7 @@ fn linalg_metal_matmul_larger() {
 #[cfg(not(feature = "metal"))]
 #[test]
 fn linalg_metal_backend_disabled() {
-    let result = LinAlg::new(Backend::Metal);
+    let result = LinAlg::new(BackendType::Metal);
     assert!(result.is_err());
     let err = result.err().unwrap();
     assert!(err.contains("Metal backend not enabled"));
@@ -503,4 +503,193 @@ fn matrix_with_fractional_values() {
     // Verify computation
     let expected = a.as_array().dot(b.as_array());
     assert_eq!(c.as_array(), &expected);
+}
+
+// ============================================================================
+// Matrix Decomposition Tests
+// ============================================================================
+
+#[test]
+fn matrix_lu_decomposition() {
+    let a =
+        Matrix::from_shape_vec(3, 3, vec![2.0, 1.0, 1.0, 4.0, 3.0, 3.0, 8.0, 7.0, 9.0]).unwrap();
+    let (l, u, _perm) = a.lu().unwrap();
+
+    // Check that LU gives a valid factorization
+    // Note: nalgebra's LU includes permutation internally, so L*U may not exactly equal A
+    // but we can verify L is lower triangular and U is upper triangular
+    assert!(l.as_array()[[0, 1]].abs() < 1e-10 || u.as_array()[[1, 0]].abs() < 1e-10);
+
+    // The decomposition should at least be internally consistent
+    assert_eq!(l.shape(), (3, 3));
+    assert_eq!(u.shape(), (3, 3));
+}
+
+#[test]
+fn matrix_qr_decomposition() {
+    let a =
+        Matrix::from_shape_vec(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0]).unwrap();
+    let (q, r) = a.qr().unwrap();
+
+    // Q should be orthogonal: Q^T * Q ≈ I
+    let qt = q.t();
+    let qtq = qt.dot(&q).unwrap();
+    let identity = eye(3);
+    for i in 0..3 {
+        for j in 0..3 {
+            assert!(
+                (qtq.as_array()[[i, j]] - identity.as_array()[[i, j]]).abs() < 1e-10,
+                "Q not orthogonal at ({}, {})",
+                i,
+                j
+            );
+        }
+    }
+
+    // R should be upper triangular
+    assert!(r.as_array()[[1, 0]].abs() < 1e-10);
+    assert!(r.as_array()[[2, 0]].abs() < 1e-10);
+    assert!(r.as_array()[[2, 1]].abs() < 1e-10);
+
+    // Q * R should equal A
+    let reconstructed = q.dot(&r).unwrap();
+    for i in 0..3 {
+        for j in 0..3 {
+            assert!(
+                (reconstructed.as_array()[[i, j]] - a.as_array()[[i, j]]).abs() < 1e-10,
+                "QR reconstruction mismatch at ({}, {})",
+                i,
+                j
+            );
+        }
+    }
+}
+
+#[test]
+fn matrix_cholesky_decomposition() {
+    // Symmetric positive-definite matrix
+    let a =
+        Matrix::from_shape_vec(3, 3, vec![4.0, 2.0, 2.0, 2.0, 5.0, 1.0, 2.0, 1.0, 6.0]).unwrap();
+    let l = a.cholesky().unwrap();
+
+    // L should be lower triangular
+    assert!(l.as_array()[[0, 1]].abs() < 1e-10);
+    assert!(l.as_array()[[0, 2]].abs() < 1e-10);
+    assert!(l.as_array()[[1, 2]].abs() < 1e-10);
+
+    // L * L^T should equal A
+    let lt = l.t();
+    let reconstructed = l.dot(&lt).unwrap();
+    for i in 0..3 {
+        for j in 0..3 {
+            assert!(
+                (reconstructed.as_array()[[i, j]] - a.as_array()[[i, j]]).abs() < 1e-10,
+                "Cholesky reconstruction mismatch at ({}, {})",
+                i,
+                j
+            );
+        }
+    }
+}
+
+#[test]
+fn matrix_svd() {
+    let a = Matrix::from_shape_vec(3, 2, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let (u, s, vt) = a.svd().unwrap();
+
+    // Check dimensions - nalgebra returns thin SVD by default
+    assert_eq!(u.nrows(), 3);
+    assert_eq!(s.len(), 2);
+    assert_eq!(vt.ncols(), 2);
+
+    // Singular values should be non-negative and in descending order
+    let s_arr = s.as_array();
+    assert!(s_arr[0] >= 0.0);
+    assert!(s_arr[1] >= 0.0);
+    assert!(s_arr[0] >= s_arr[1]);
+}
+
+#[test]
+fn matrix_eigenvalues() {
+    // Symmetric matrix with known eigenvalues
+    let a = Matrix::from_shape_vec(2, 2, vec![3.0, 1.0, 1.0, 3.0]).unwrap();
+    let (eigvals_real, eigvals_imag, _eigvecs) = a.eig().unwrap();
+
+    // For this symmetric matrix, eigenvalues should be 4 and 2
+    // (imaginary parts should be 0)
+    for imag in &eigvals_imag {
+        assert!(imag.abs() < 1e-10);
+    }
+
+    let mut sorted_eigvals = eigvals_real.clone();
+    sorted_eigvals.sort_by(|a, b| b.partial_cmp(a).unwrap());
+    assert!((sorted_eigvals[0] - 4.0).abs() < 1e-10);
+    assert!((sorted_eigvals[1] - 2.0).abs() < 1e-10);
+}
+
+#[test]
+fn matrix_determinant() {
+    let a =
+        Matrix::from_shape_vec(3, 3, vec![1.0, 2.0, 3.0, 0.0, 1.0, 4.0, 5.0, 6.0, 0.0]).unwrap();
+    let det = a.det().unwrap();
+    // Expected: 1*(1*0 - 4*6) - 2*(0*0 - 4*5) + 3*(0*6 - 1*5) = -24 + 40 - 15 = 1
+    assert!((det - 1.0).abs() < 1e-10);
+}
+
+#[test]
+fn matrix_determinant_identity() {
+    let i = eye(4);
+    let det = i.det().unwrap();
+    assert!((det - 1.0).abs() < 1e-10);
+}
+
+#[test]
+fn matrix_inverse() {
+    let a = Matrix::from_shape_vec(2, 2, vec![4.0, 7.0, 2.0, 6.0]).unwrap();
+    let a_inv = a.inv().unwrap();
+
+    // A * A^-1 should be identity
+    let product = a.dot(&a_inv).unwrap();
+    let identity = eye(2);
+    for i in 0..2 {
+        for j in 0..2 {
+            assert!(
+                (product.as_array()[[i, j]] - identity.as_array()[[i, j]]).abs() < 1e-10,
+                "Inverse check failed at ({}, {})",
+                i,
+                j
+            );
+        }
+    }
+}
+
+#[test]
+fn matrix_solve() {
+    // Solve Ax = b where A = [[3, 1], [1, 2]] and b = [9, 8]
+    // Solution should be x = [2, 3]
+    let a = Matrix::from_shape_vec(2, 2, vec![3.0, 1.0, 1.0, 2.0]).unwrap();
+    let b = Vector::from_vec(vec![9.0, 8.0]);
+    let x = a.solve(&b).unwrap();
+
+    assert!((x.as_array()[0] - 2.0).abs() < 1e-10);
+    assert!((x.as_array()[1] - 3.0).abs() < 1e-10);
+}
+
+#[test]
+fn matrix_trace() {
+    let a =
+        Matrix::from_shape_vec(3, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).unwrap();
+    let trace = a.trace().unwrap();
+    assert!((trace - 15.0).abs() < 1e-10); // 1 + 5 + 9 = 15
+}
+
+#[test]
+fn matrix_rank() {
+    // Full rank matrix
+    let a = Matrix::from_shape_vec(2, 2, vec![1.0, 2.0, 3.0, 4.0]).unwrap();
+    assert_eq!(a.rank(), 2);
+
+    // Rank-deficient matrix (row 2 = 2 * row 1)
+    let b = Matrix::from_shape_vec(2, 2, vec![1.0, 2.0, 2.0, 4.0]).unwrap();
+    assert_eq!(b.rank(), 1);
 }

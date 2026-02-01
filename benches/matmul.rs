@@ -1,17 +1,17 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use lin_alg::{Backend, LinAlg, Matrix};
+use lin_alg::{BackendType, LinAlg, Matrix};
 use rand::Rng;
 use std::env;
 
-fn backend_from_env() -> Backend {
+fn backend_from_env() -> BackendType {
     let use_metal = env::var("USE_METAL")
         .ok()
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
     if use_metal {
-        Backend::Metal
+        BackendType::Metal
     } else {
-        Backend::Cpu
+        BackendType::Cpu
     }
 }
 
