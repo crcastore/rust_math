@@ -107,7 +107,10 @@ mod tests {
         let dispatcher = Dispatcher::new(1);
         dispatcher.submit_cpu(simple_job(0));
 
-        let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+        let result = dispatcher
+            .results()
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap();
         assert_eq!(result.id, 0);
         assert!(result.worker.starts_with("CPU"));
 
@@ -119,7 +122,10 @@ mod tests {
         let dispatcher = Dispatcher::new(1);
         dispatcher.submit_gpu(simple_job(1));
 
-        let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+        let result = dispatcher
+            .results()
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap();
         assert_eq!(result.id, 1);
         assert_eq!(result.worker, "GPU");
 
@@ -136,7 +142,10 @@ mod tests {
 
         let mut ids = std::collections::HashSet::new();
         for _ in 0..6 {
-            let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+            let result = dispatcher
+                .results()
+                .recv_timeout(Duration::from_secs(10))
+                .unwrap();
             ids.insert(result.id);
         }
 

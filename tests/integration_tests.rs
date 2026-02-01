@@ -136,7 +136,10 @@ fn test_dispatcher_single_cpu_job() {
 
     dispatcher.submit_cpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
     assert_eq!(result.id, 0);
     assert!(result.worker.starts_with("CPU"));
     assert_eq!(result.data.len(), 4);
@@ -162,7 +165,10 @@ fn test_dispatcher_single_gpu_job() {
 
     dispatcher.submit_gpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
     assert_eq!(result.id, 1);
     assert_eq!(result.worker, "GPU");
     assert_eq!(result.data.len(), 4);
@@ -188,7 +194,10 @@ fn test_dispatcher_multiple_cpu_jobs() {
 
     let mut received_ids = HashSet::new();
     for _ in 0..num_jobs {
-        let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+        let result = dispatcher
+            .results()
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap();
         received_ids.insert(result.id);
         assert!(result.worker.starts_with("CPU"));
     }
@@ -214,7 +223,10 @@ fn test_dispatcher_multiple_gpu_jobs() {
 
     let mut received_ids = HashSet::new();
     for _ in 0..num_jobs {
-        let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+        let result = dispatcher
+            .results()
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap();
         received_ids.insert(result.id);
         assert_eq!(result.worker, "GPU");
     }
@@ -243,7 +255,10 @@ fn test_dispatcher_mixed_cpu_gpu_jobs() {
     let mut received_ids = HashSet::new();
 
     for _ in 0..6 {
-        let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+        let result = dispatcher
+            .results()
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap();
         received_ids.insert(result.id);
         if result.worker.starts_with("CPU") {
             cpu_count += 1;
@@ -274,7 +289,10 @@ fn test_dispatcher_rectangular_matrices() {
     let job = MatMulJob::new(0, a, b, 2, 3, 4);
     dispatcher.submit_cpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
     assert_eq!(result.id, 0);
     assert_eq!(result.data.len(), 8); // 2x4 = 8
 
@@ -296,7 +314,10 @@ fn test_dispatcher_large_matrices() {
     let job = MatMulJob::square(99, a, b, size);
     dispatcher.submit_cpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(30)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(30))
+        .unwrap();
     assert_eq!(result.id, 99);
     assert_eq!(result.data.len(), size * size);
     assert!(result.duration_ms > 0.0);
@@ -311,7 +332,10 @@ fn test_dispatcher_duration_is_positive() {
     let job = MatMulJob::square(0, vec![1.0; 16], vec![1.0; 16], 4);
     dispatcher.submit_cpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
     assert!(result.duration_ms > 0.0);
 
     dispatcher.shutdown();
@@ -355,7 +379,10 @@ fn test_matmul_correctness_simple() {
     let job = MatMulJob::square(0, a, b, 2);
     dispatcher.submit_cpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
 
     assert!((result.data[0] - 19.0).abs() < 0.001);
     assert!((result.data[1] - 22.0).abs() < 0.001);
@@ -376,7 +403,10 @@ fn test_matmul_correctness_gpu() {
     let job = MatMulJob::square(0, a, b, 2);
     dispatcher.submit_gpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
 
     assert!((result.data[0] - 19.0).abs() < 0.001);
     assert!((result.data[1] - 22.0).abs() < 0.001);
@@ -396,7 +426,10 @@ fn test_matmul_zero_matrix() {
     let job = MatMulJob::square(0, a, b, 2);
     dispatcher.submit_cpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
 
     // Any matrix times zero matrix = zero matrix
     for val in &result.data {
@@ -416,7 +449,10 @@ fn test_matmul_identity_matrix() {
     let job = MatMulJob::square(0, a.clone(), identity, 2);
     dispatcher.submit_cpu(job);
 
-    let result = dispatcher.results().recv_timeout(Duration::from_secs(10)).unwrap();
+    let result = dispatcher
+        .results()
+        .recv_timeout(Duration::from_secs(10))
+        .unwrap();
 
     // A * I = A
     for (i, val) in result.data.iter().enumerate() {
@@ -478,7 +514,10 @@ fn test_worker_load_distribution() {
         std::collections::HashMap::new();
 
     for _ in 0..total_jobs {
-        let result = dispatcher.results().recv_timeout(Duration::from_secs(30)).unwrap();
+        let result = dispatcher
+            .results()
+            .recv_timeout(Duration::from_secs(30))
+            .unwrap();
         *worker_counts.entry(result.worker).or_insert(0) += 1;
     }
 

@@ -8,11 +8,7 @@ use crossbeam_channel::{Receiver, Sender};
 use std::time::Instant;
 
 /// CPU worker - processes jobs using burn-ndarray backend.
-pub fn cpu_worker(
-    worker_id: usize,
-    jobs: Receiver<MatMulJob>,
-    results: Sender<MatMulResult>,
-) {
+pub fn cpu_worker(worker_id: usize, jobs: Receiver<MatMulJob>, results: Sender<MatMulResult>) {
     type B = NdArray<f32>;
     let device = Default::default();
 
